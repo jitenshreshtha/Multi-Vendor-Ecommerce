@@ -29,6 +29,11 @@ export default function Homepage() {
                     <button onClick={handleLogout}>Logout</button>
                     <Link to='/vendor/register'>Become Vendor</Link>
                     <Link to='/vendor/dashboard'>Vendor Dashboard</Link>
+                    <Link to='/vendor/add-product'>Add Product</Link>
+                    <Link to='/vendor/products'>ProductList</Link>
+                    <Link to='/store'>Store</Link>
+                    <Link to='/cart'>Cart</Link>
+                    <Link to='/my-orders'>My Orders</Link>
                 </>
             ) : (
                 <Link to='/login'>Login</Link>
