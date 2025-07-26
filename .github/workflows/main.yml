@@ -1,0 +1,104 @@
+name: Multi-Vendor E-commerce CI/CD Pipeline
+
+on:
+  push:
+    branches: [master]  
+  pull_request:
+    branches: [master]
+
+env:
+  NODE_VERSION: '18'
+
+jobs:
+  # Frontend tests and build
+  frontend:
+    name: Frontend Tests & Build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./frontend
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Run linting
+        run: npm run lint
+      
+      - name: Build frontend
+        run: npm run build
+      
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-build
+          path: frontend/dist/
+          retention-days: 1
+
+  # Backend tests and validation
+  backend:
+    name: Backend Tests & Validation
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./backend
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Check for security vulnerabilities
+        run: npm audit --audit-level=moderate
+        continue-on-error: true
+      
+      - name: Validate backend structure
+        run: |
+          echo "Checking backend structure..."
+          test -f index.js || (echo "index.js not found" && exit 1)
+          test -d controllers || (echo "controllers directory not found" && exit 1)
+          test -d models || (echo "models directory not found" && exit 1)
+          echo "Backend structure validation passed"
+
+  deploy:
+    name: Deploy to AWS EC2
+    runs-on: ubuntu-latest
+    needs: [frontend, backend]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+
+    steps:
+      - name: Checkout code (optional for logs)
+        uses: actions/checkout@v4
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}         # your EC2 IP or DNS
+          username: ${{ secrets.EC2_USER }}     # e.g. ubuntu or ec2-user
+          key: ${{ secrets.EC2_SSH_KEY }}       # your private SSH key stored as GitHub secret
+          port: 22
+          script: |
+            cd /path/to/your/app
+            git pull origin master
+            npm install
+            npm run build
+            pm2 restart all
